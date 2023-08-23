@@ -36,33 +36,36 @@ import { getNFTSlug } from "app/hooks/use-share-nft";
 import { Logger } from "app/lib/logger";
 import { Link as NavLink } from "app/navigation/link";
 import { TextLink } from "app/navigation/link";
-import { getCreatorUsernameFromNFT, getCurrencyPrice } from "app/utilities";
+import {
+  formatWalletNameToUpperCase,
+  getCreatorUsernameFromNFT,
+  getCurrencyPrice,
+} from "app/utilities";
 
 import { ThreeDotsAnimation } from "design-system/three-dots";
 import { toast } from "design-system/toast";
 
 import { EmptyPlaceholder } from "../empty-placeholder";
+import { OnRampInitDataType, PayWithUPI } from "./pay-with-upi";
 import { stripePromise } from "./stripe";
 
-export function CheckoutClaimForm({
-  clientSecret,
-  contractAddress,
-}: {
-  clientSecret: string;
+export function CheckoutClaimForm(props: {
+  clientSecret?: string;
   contractAddress: string;
+  onRampInitData: OnRampInitDataType | null;
 }) {
+  const { clientSecret, contractAddress, onRampInitData } = props;
   const { data: edition, loading } =
     useCreatorCollectionDetail(contractAddress);
   const isDark = useIsDarkMode();
   const router = useRouter();
   const stripeOptions = useMemo(
-    () =>
-      ({
-        clientSecret,
-        appearance: {
-          theme: isDark ? "night" : "stripe",
-        },
-      } as const),
+    () => ({
+      clientSecret,
+      appearance: {
+        theme: isDark ? "night" : "stripe",
+      } as const,
+    }),
     [clientSecret, isDark]
   );
 
@@ -73,7 +76,7 @@ export function CheckoutClaimForm({
       </View>
     );
   }
-  if (!edition || !clientSecret)
+  if (!edition || (!clientSecret && !onRampInitData))
     return (
       <View tw="min-h-[200px] flex-1 items-center justify-center">
         <EmptyPlaceholder
@@ -91,21 +94,28 @@ export function CheckoutClaimForm({
       </View>
     );
 
-  return (
+  return stripeOptions.clientSecret ? (
     <Elements stripe={stripePromise()} options={stripeOptions}>
-      <CheckoutFormLayout edition={edition} clientSecret={clientSecret} />
+      <CheckoutFormLayout
+        edition={edition}
+        clientSecret={stripeOptions.clientSecret}
+        onRampInitData={onRampInitData}
+      />
     </Elements>
-  );
+  ) : onRampInitData ? (
+    <View tw="p-16">
+      <PayWithUPI onRampInitData={onRampInitData} edition={edition} />
+    </View>
+  ) : null;
 }
 
-const CheckoutFormLayout = ({
-  edition,
-  clientSecret,
-}: {
+const CheckoutFormLayout = (props: {
   edition: CreatorEditionResponse;
   clientSecret: string;
+  onRampInitData: OnRampInitDataType | null;
 }) => {
   const isDark = useIsDarkMode();
+  const { edition, clientSecret, onRampInitData } = props;
   const { data: nft } = useNFTDetailByTokenId({
     chainName: edition.chain_name,
     tokenId: "0",
@@ -118,7 +128,7 @@ const CheckoutFormLayout = ({
     [paymentMethods.data]
   );
   const paymentMethodsList = useMemo(
-    () => uniq(paymentMethods.data),
+    () => uniq(paymentMethods.data?.filter((f) => f.type == "card")),
     [paymentMethods.data]
   );
   const [savedPaymentMethodId, setSavedPaymentMethodId] = useState(
@@ -267,6 +277,14 @@ const CheckoutFormLayout = ({
           </View>
         </View>
         <View tw="h-6" />
+        {onRampInitData ? (
+          <View tw="pt-4">
+            <PayWithUPI onRampInitData={onRampInitData} edition={edition} />
+            <Text tw="py-4 text-center text-lg font-semibold text-gray-900 dark:text-gray-50">
+              or
+            </Text>
+          </View>
+        ) : null}
         {paymentMethodsList && paymentMethodsList?.length > 0 ? (
           <>
             {paymentMethodsList?.map((method) => {
@@ -303,6 +321,15 @@ const CheckoutFormLayout = ({
                         {`(Ending in ${method.details.last4} · ${
                           method.details.exp_month
                         }/${method.details.exp_year?.toString().slice(-2)})`}
+                        {method.details.wallet &&
+                        (method.details.wallet as any)?.type ? (
+                          <Text tw="text-13 ml-1">
+                            from{" "}
+                            {formatWalletNameToUpperCase(
+                              (method.details.wallet as any).type
+                            )}
+                          </Text>
+                        ) : null}
                       </Text>
                     </View>
                   </PressableHover>
@@ -363,7 +390,8 @@ const CheckoutFormLayout = ({
               Terms & Conditions
             </TextLink>{" "}
             and understand that you are purchasing a non-refundable digital
-            item.
+            item. Final currency depends on creator bank. USD price may be
+            estimated with latest rates. Currency fees may apply.
           </Text>
         </View>
 
@@ -389,8 +417,8 @@ const CheckoutFormLayout = ({
             </Text>
           ) : (
             `Collect to unlock - ${getCurrencyPrice(
-              edition.currency,
-              edition.price
+              edition.usd_price ? "USD" : edition.currency,
+              edition.usd_price ?? edition.price
             )}`
           )}
         </Button>

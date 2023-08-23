@@ -97,6 +97,7 @@ export const FeedItemMD = memo<FeedItemProps>(function FeedItemMD({
     tokenId: nft?.token_id,
     chainName: nft?.chain_name,
   });
+
   const videoRef = useRef<ExpoVideo | null>(null);
   const [muted, setMuted] = useMuted();
   const { commentsCount } = useComments(nft.nft_id);
@@ -215,7 +216,10 @@ export const FeedItemMD = memo<FeedItemProps>(function FeedItemMD({
                 <CollectToUnlockContentTooltip
                   creatorUsername={nft?.creator_username}
                   price={edition?.price}
+                  usd_price={edition?.usd_price}
                   currency={edition?.currency}
+                  isAlreadyClaimed={edition.is_already_claimed}
+                  channelId={detailData?.data.item?.creator_channel_id}
                 />
               </View>
             ) : null}

@@ -114,8 +114,11 @@ export const NFTDetails = ({
                 <CollectToUnlockContentTooltip
                   creatorUsername={nft?.creator_username}
                   price={edition?.price}
+                  usd_price={edition?.usd_price}
                   currency={edition?.currency}
                   theme="dark"
+                  isAlreadyClaimed={edition.is_already_claimed}
+                  channelId={nft?.creator_channel_id}
                 />
               ) : (
                 <ContentTypeTooltip edition={edition} theme="dark" />

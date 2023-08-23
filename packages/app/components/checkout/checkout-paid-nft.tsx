@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState } from "react";
 
 import { Alert } from "@showtime-xyz/universal.alert";
 import { Button } from "@showtime-xyz/universal.button";
@@ -13,6 +13,7 @@ import { createParam } from "app/navigation/use-param";
 
 import { EmptyPlaceholder } from "../empty-placeholder";
 import { CheckoutClaimForm } from "./checkout-claim-form";
+import { OnRampInitDataType } from "./pay-with-upi";
 
 type Query = {
   editionId?: string;
@@ -23,67 +24,69 @@ const { useParam } = createParam<Query>();
 export const CheckoutPaidNFT = () => {
   const [editionId] = useParam("editionId");
   const [contractAddress] = useParam("contractAddress");
-  const [clientSecret, setClientSecret] = useState(null);
+  const [clientSecret, setClientSecret] = useState(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [onRampInitData, setOnRampInitData] =
+    useState<null | OnRampInitDataType>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const router = useRouter();
   const getClaimPaymentsIntent = useCallback(async () => {
-    await axios({
-      method: "POST",
-      url: "/v1/payments/nft/claim/start",
-      data: {
-        edition_id: editionId,
-        use_default_payment_method: false,
-        set_payment_method_as_default: true,
-      },
-    })
-      .then((res) => {
-        setClientSecret(res?.client_secret);
-        setIsLoading(false);
-      })
-      .catch(async (error) => {
-        if (error?.response?.data?.error?.code === 400) {
-          await axios({
+    try {
+      const res = await axios({
+        method: "POST",
+        url: "/v1/payments/nft/claim/start",
+        data: {
+          edition_id: editionId,
+          use_default_payment_method: false,
+          set_payment_method_as_default: true,
+        },
+      });
+      setClientSecret(res?.client_secret);
+      setIsLoading(false);
+      if (res.onramp_payment_intent) {
+        setOnRampInitData(res.onramp_payment_intent);
+      }
+    } catch (error: any) {
+      if (error?.response?.data?.error?.code === 400) {
+        try {
+          const res = await axios({
             method: "POST",
             url: "/v1/payments/nft/claim/resume",
-          })
-            .then((res) => {
-              setClientSecret(res?.client_secret);
-            })
-            .catch((err) => {
-              Alert.alert(
-                "Oops, An error occurred.",
-                err?.response?.data?.error?.message
-              );
-              setErrorMsg(err?.response?.data?.error.message);
-            });
-        } else if (error?.response?.data?.error?.code === 409) {
-          // Begin claiming if user has already paid
-          router.push(
-            {
-              pathname: router.pathname,
-              query: {
-                ...router.query,
-                contractAddress,
-                checkoutReturnForPaidNFTModal: true,
-              },
-            },
-            router.asPath,
-            {
-              shallow: true,
-            }
-          );
-        } else {
+          });
+          setClientSecret(res?.client_secret);
+        } catch (err: any) {
           Alert.alert(
             "Oops, An error occurred.",
-            error?.response?.data?.error?.message
+            err?.response?.data?.error?.message
           );
-          setErrorMsg(error?.response?.data?.error?.message);
+          setErrorMsg(err?.response?.data?.error.message);
         }
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+      } else if (error?.response?.data?.error?.code === 409) {
+        // Begin claiming if user has already paid
+        router.push(
+          {
+            pathname: router.pathname,
+            query: {
+              ...router.query,
+              contractAddress,
+              checkoutReturnForPaidNFTModal: true,
+            },
+          },
+          router.asPath,
+          {
+            shallow: true,
+          }
+        );
+      } else {
+        Alert.alert(
+          "Oops, An error occurred.",
+          error?.response?.data?.error?.message
+        );
+        setErrorMsg(error?.response?.data?.error?.message);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   }, [editionId, router, contractAddress]);
 
   useEffectOnce(() => {
@@ -117,13 +120,15 @@ export const CheckoutPaidNFT = () => {
     );
   }
 
-  if (!clientSecret || !contractAddress) {
+  if (!contractAddress || (!clientSecret && !onRampInitData)) {
     return <EmptyPlaceholder tw="min-h-[296px]" title="No payment yet" />;
   }
+
   return (
     <CheckoutClaimForm
       clientSecret={clientSecret}
       contractAddress={contractAddress}
+      onRampInitData={onRampInitData}
     />
   );
 };

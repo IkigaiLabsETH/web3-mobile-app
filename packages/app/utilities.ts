@@ -754,10 +754,13 @@ export const OAUTH_REDIRECT_URI = Platform.select({
 export const isProfileIncomplete = (profile?: Profile) => {
   // FYI: has_social_login is true if user has logged in with google, apple, spotify, twitter, instagram
   // the value is false if user has logged in with email or phone number
-  return profile
+  const isIncomplete = profile
     ? !profile.username ||
-        (!profile.has_social_login && !profile.captcha_completed_at)
+      (!profile.has_social_login &&
+        !profile.captcha_completed_at &&
+        !profile.latest_star_drop_collected)
     : undefined;
+  return isIncomplete;
 };
 
 export function getFullSizeCover(url: string | undefined) {
@@ -903,7 +906,10 @@ export const generateFakeData = (
   }));
 };
 
-export function formatDateRelativeWithIntl(isoDateString: string): string {
+export function formatDateRelativeWithIntl(
+  isoDateString: string,
+  isDisplayCompleteUnit = false
+): string {
   const date = new Date(isoDateString);
   const now = new Date();
   const diffInSeconds = (now.getTime() - date.getTime()) / 1000;
@@ -921,20 +927,25 @@ export function formatDateRelativeWithIntl(isoDateString: string): string {
     });
     return timeFormatter.format(date);
   } else if (diffInDays >= 1 && diffInDays < 7) {
-    return `${diffInDays}d`;
+    return `${diffInDays}${isDisplayCompleteUnit ? " days ago" : "d"}`;
   } else {
     const diffInWeeks = Math.floor(diffInDays / 7);
     const diffInMonths = Math.floor(diffInDays / 30.44);
     const diffInYears = Math.floor(diffInDays / 365.25);
-
-    if (diffInWeeks < 4) {
-      return `${diffInWeeks}w`;
+    if (diffInWeeks === 1) {
+      return `${diffInWeeks}${isDisplayCompleteUnit ? " week ago" : "w"}`;
+    } else if (diffInWeeks < 4) {
+      return `${diffInWeeks}${isDisplayCompleteUnit ? " weeks ago" : "w"}`;
     } else if (diffInMonths < 1) {
-      return `${diffInWeeks}w`;
+      return `${diffInWeeks}${isDisplayCompleteUnit ? " weeks ago" : "w"}`;
+    } else if (diffInMonths === 1) {
+      return `${diffInMonths}${isDisplayCompleteUnit ? " month ago" : "w"}`;
     } else if (diffInMonths < 12) {
-      return `${diffInMonths}m`;
+      return `${diffInMonths}${isDisplayCompleteUnit ? " months ago" : "w"}`;
+    } else if (diffInYears === 1) {
+      return `${diffInYears}${isDisplayCompleteUnit ? " year ago" : "w"}`;
     } else {
-      return `${diffInYears}y`;
+      return `${diffInYears}${isDisplayCompleteUnit ? " years ago" : "w"}`;
     }
   }
 }
@@ -1083,3 +1094,23 @@ export function isNumber(str: string) {
 export let prevRouteRef = {
   current: null,
 };
+
+// This is one of the fastest shuffling algorithms
+// can be called with fisherYatesShuffle(array)
+export function fisherYatesShuffle<T>(array: T[]): T[] {
+  const shuffledArray = [...array];
+  for (let i = shuffledArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledArray[i], shuffledArray[j]] = [shuffledArray[j], shuffledArray[i]];
+  }
+  return shuffledArray;
+}
+
+export function formatWalletNameToUpperCase(str?: string) {
+  if (!str) return "";
+  const parts = str.split("_");
+  const formattedParts = parts.map(
+    (part) => part.charAt(0).toUpperCase() + part.slice(1)
+  );
+  return formattedParts.join(" ");
+}

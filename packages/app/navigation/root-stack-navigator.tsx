@@ -233,11 +233,7 @@ export function RootStackNavigator() {
           name="appleMusicAuthNativeWebView"
           component={AppleMusicAuthNativeWebViewScreen}
         />
-        <Stack.Screen
-          name="onboarding"
-          component={OnboardingScreen}
-          options={{ gestureEnabled: false }}
-        />
+        <Stack.Screen name="onboarding" component={OnboardingScreen} />
         <Stack.Screen name="addEmail" component={AddEmailScreen} />
         <Stack.Screen
           name="verifyPhoneNumber"
@@ -248,16 +244,8 @@ export function RootStackNavigator() {
           component={DropExplanationScreen}
         />
 
-        <Stack.Screen
-          name="dropStar"
-          component={DropStarScreen}
-          options={{ gestureEnabled: false }}
-        />
-        <Stack.Screen
-          name="payoutsSetup"
-          component={PayoutsSetupScreen}
-          options={{ gestureEnabled: false }}
-        />
+        <Stack.Screen name="dropStar" component={DropStarScreen} />
+        <Stack.Screen name="payoutsSetup" component={PayoutsSetupScreen} />
         <Stack.Screen name="claim" component={ClaimScreen} />
         <Stack.Screen name="qrCodeShare" component={QRCodeShareScreen} />
         <Stack.Screen name="dropImageShare" component={DropImageShareScreen} />
