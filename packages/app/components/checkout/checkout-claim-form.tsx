@@ -26,7 +26,10 @@ import { Text } from "@showtime-xyz/universal.text";
 import { View } from "@showtime-xyz/universal.view";
 
 import { Media } from "app/components/media";
-import { usePaymentsManage } from "app/hooks/api/use-payments-manage";
+import {
+  PaymentsMethods,
+  usePaymentsManage,
+} from "app/hooks/api/use-payments-manage";
 import {
   CreatorEditionResponse,
   useCreatorCollectionDetail,
@@ -57,6 +60,12 @@ export function CheckoutClaimForm(props: {
   const { clientSecret, contractAddress, onRampInitData } = props;
   const { data: edition, loading } =
     useCreatorCollectionDetail(contractAddress);
+  const paymentMethods = usePaymentsManage();
+  const paymentMethodsList = useMemo(
+    () => uniq(paymentMethods.data?.filter((f) => f.type == "card")),
+    [paymentMethods.data]
+  );
+
   const isDark = useIsDarkMode();
   const router = useRouter();
   const stripeOptions = useMemo(
@@ -69,16 +78,16 @@ export function CheckoutClaimForm(props: {
     [clientSecret, isDark]
   );
 
-  if (loading) {
+  if (loading || paymentMethods.isLoading) {
     return (
-      <View tw="min-h-[200px] flex-1 items-center justify-center">
+      <View tw="min-h-[296px] flex-1 items-center justify-center">
         <Spinner />
       </View>
     );
   }
   if (!edition || (!clientSecret && !onRampInitData))
     return (
-      <View tw="min-h-[200px] flex-1 items-center justify-center">
+      <View tw="min-h-[296px] flex-1 items-center justify-center">
         <EmptyPlaceholder
           title="Payment failed, please try again!"
           tw="mb-8"
@@ -100,6 +109,7 @@ export function CheckoutClaimForm(props: {
         edition={edition}
         clientSecret={stripeOptions.clientSecret}
         onRampInitData={onRampInitData}
+        paymentMethodsList={paymentMethodsList}
       />
     </Elements>
   ) : onRampInitData ? (
@@ -113,26 +123,18 @@ const CheckoutFormLayout = (props: {
   edition: CreatorEditionResponse;
   clientSecret: string;
   onRampInitData: OnRampInitDataType | null;
+  paymentMethodsList: PaymentsMethods[];
 }) => {
   const isDark = useIsDarkMode();
-  const { edition, clientSecret, onRampInitData } = props;
+  const { edition, clientSecret, onRampInitData, paymentMethodsList } = props;
   const { data: nft } = useNFTDetailByTokenId({
     chainName: edition.chain_name,
     tokenId: "0",
     contractAddress: edition?.creator_airdrop_edition.contract_address,
   });
   const router = useRouter();
-  const paymentMethods = usePaymentsManage();
-  const defaultPaymentMethod = useMemo(
-    () => paymentMethods.data?.find((method) => method.is_default),
-    [paymentMethods.data]
-  );
-  const paymentMethodsList = useMemo(
-    () => uniq(paymentMethods.data?.filter((f) => f.type == "card")),
-    [paymentMethods.data]
-  );
   const [savedPaymentMethodId, setSavedPaymentMethodId] = useState(
-    defaultPaymentMethod?.id
+    paymentMethodsList?.find((method) => method.is_default)?.id
   );
   const [isUseSavedCard, setIsUseSavedCard] = useState(true);
   const stripe = useStripe();
@@ -306,14 +308,14 @@ const CheckoutFormLayout = (props: {
                     ) : (
                       <View tw="h-5 w-5 rounded-full border-[1px] border-gray-800 dark:border-gray-100" />
                     )}
-                    <View tw="ml-2 self-start md:self-center">
+                    <View tw="ml-2">
                       <CreditCard
                         width={20}
                         height={20}
                         color={isDark ? colors.white : colors.black}
                       />
                     </View>
-                    <View tw="ml-2 flex-row">
+                    <Text tw="ml-2 flex-row">
                       <Text tw="text-base font-medium text-gray-900 dark:text-gray-100">
                         {method?.is_default ? "Default Card" : "Card"}
                       </Text>
@@ -331,7 +333,7 @@ const CheckoutFormLayout = (props: {
                           </Text>
                         ) : null}
                       </Text>
-                    </View>
+                    </Text>
                   </PressableHover>
                 </View>
               );

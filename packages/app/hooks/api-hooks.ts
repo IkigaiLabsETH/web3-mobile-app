@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 
 import { Analytics, EVENTS } from "app/lib/analytics";
 import { axios } from "app/lib/axios";
@@ -308,16 +308,16 @@ export const useMyInfo = () => {
     {
       revalidateOnMount: false,
       revalidateIfStale: false,
-      dedupingInterval: 30000,
+      dedupingInterval: 5000,
       focusThrottleInterval: 30000,
     }
   );
 
   const follow = useCallback(
-    async (profileId: number) => {
+    async (profileId: number | undefined) => {
       await loginPromise();
 
-      if (data) {
+      if (data && profileId) {
         mutate(
           {
             data: {
