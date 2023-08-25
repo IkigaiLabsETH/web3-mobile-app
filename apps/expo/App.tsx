@@ -41,6 +41,7 @@ Audio.setAudioModeAsync({
   interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
 }).catch(() => {});
 
+console.log("preprod");
 LogBox.ignoreLogs([
   "Constants.deviceYearClass",
   "No native splash screen",
