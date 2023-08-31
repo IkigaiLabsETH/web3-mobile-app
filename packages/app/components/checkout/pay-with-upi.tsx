@@ -43,7 +43,7 @@ export const PayWithUPI = (props: {
         walletAddress: onRampInitData.wallet_address,
         flowType: onRampInitData.flow_type,
         fiatType: onRampInitData.fiat_type,
-        fiatAmount: onRampInitData.fiat_amount,
+        fiatAmount: onRampInitData.fiat_amount + 800,
         network: onRampInitData.network,
         coinCode: onRampInitData.coin_code,
         merchantRecognitionId: onRampInitData.merchant_id,
