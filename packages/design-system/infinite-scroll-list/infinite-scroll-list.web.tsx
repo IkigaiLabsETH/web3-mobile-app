@@ -7,6 +7,7 @@ import {
   isValidElement,
   forwardRef,
   Fragment,
+  memo,
 } from "react";
 
 import type { FlashListProps, ViewToken } from "@shopify/flash-list";
@@ -79,6 +80,7 @@ function InfiniteScrollListImpl<Item>(
   const viewableItems = useRef<ViewToken[]>([]);
   const parentRef = useRef<HTMLDivElement>(null);
   const scrollMarginOffseRef = useRef<HTMLDivElement>(null);
+  const positionWasRestored = useRef<boolean>(false);
 
   const parentOffsetRef = useRef(0);
   const router = useRouter();
@@ -96,10 +98,11 @@ function InfiniteScrollListImpl<Item>(
       scrollMargin: parentOffsetRef.current,
       overscan: overscan ?? 2,
       initialOffset: (() => {
-        if (!preserveScrollPosition) return;
+        if (!preserveScrollPosition || positionWasRestored.current) return;
         const pos = sessionStorage.getItem(key);
         if (pos) {
           const parsedPos = Number(pos);
+          positionWasRestored.current = true;
           return parsedPos;
         }
         return 0;
@@ -115,10 +118,11 @@ function InfiniteScrollListImpl<Item>(
       scrollMargin: parentOffsetRef.current,
       overscan: overscan ?? 4,
       initialOffset: (() => {
-        if (!preserveScrollPosition) return;
+        if (!preserveScrollPosition || positionWasRestored.current) return;
         const pos = sessionStorage.getItem(key);
         if (pos) {
           const parsedPos = Number(pos);
+          positionWasRestored.current = true;
           return parsedPos;
         }
         return 0;
@@ -131,24 +135,33 @@ function InfiniteScrollListImpl<Item>(
 
   useEffect(() => {
     const lastItem = renderedItems[renderedItems.length - 1];
+
     if (!lastItem) {
       return;
     }
 
-    if (data && data?.length > 0 && lastItem.index >= data.length - 1) {
+    if (count > 0 && lastItem.index >= count - 1) {
       onEndReached?.();
     }
-  }, [data, onEndReached, renderedItems]);
+  }, [count, onEndReached, renderedItems]);
 
   const saveScrollPosition = useStableCallback(() => {
     sessionStorage.setItem(key, rowVirtualizer.scrollOffset.toString());
     measurementsCache[key] = rowVirtualizer.measurementsCache;
   });
 
+  const saveWhenIdle = useStableCallback(() => {
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(saveScrollPosition);
+    } else {
+      saveScrollPosition();
+    }
+  });
+
   useEffect(() => {
     if (!preserveScrollPosition) return;
 
-    const debouncedCallback = debounce(saveScrollPosition, 100);
+    const debouncedCallback = debounce(saveWhenIdle, 100);
     rowVirtualizer.scrollElement?.addEventListener("scroll", debouncedCallback);
 
     return () => {
@@ -159,11 +172,7 @@ function InfiniteScrollListImpl<Item>(
         debouncedCallback
       );
     };
-  }, [
-    rowVirtualizer.scrollElement,
-    saveScrollPosition,
-    preserveScrollPosition,
-  ]);
+  }, [rowVirtualizer.scrollElement, preserveScrollPosition, saveWhenIdle]);
 
   const transformStyle = inverted ? { transform: "scaleY(-1)" } : {};
 
@@ -426,6 +435,6 @@ const ViewabilityTracker = ({
   );
 };
 
-const InfiniteScrollList = forwardRef(InfiniteScrollListImpl);
+const InfiniteScrollList = memo(forwardRef(InfiniteScrollListImpl));
 
 export { InfiniteScrollList };

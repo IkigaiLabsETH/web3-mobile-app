@@ -3,7 +3,11 @@ import { Platform } from "react-native";
 
 import axios, { AxiosError } from "axios";
 import getSymbolFromCurrency from "currency-symbol-map";
-import { formatDistanceToNowStrict } from "date-fns";
+import {
+  formatDistanceToNowStrict,
+  formatDuration,
+  intervalToDuration,
+} from "date-fns";
 import { ResizeMode } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { locale } from "expo-localization";
@@ -57,6 +61,8 @@ export const getProfileName = (profile?: Profile) => {
 
   return "Unnamed";
 };
+
+export const globalTimeFormatter = new Intl.NumberFormat();
 
 export const DEFAULT_PROFILE_PIC =
   "https://cdn.tryshowtime.com/profile_placeholder2.jpg";
@@ -413,6 +419,51 @@ export const MATIC_CHAIN_DETAILS = {
   ],
 };
 
+export function extractMimeType(dataUri: string) {
+  const match = dataUri.match(/^data:([^;]+);/);
+  if (!match) {
+    throw new Error(`Unsupported data URI`);
+  }
+  return match[1];
+}
+
+export function generateRandomFilename(mimeType: string): string {
+  const mimeToExtension: { [key: string]: string } = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "video/mp4": "mp4",
+    "video/mpeg": "mp4",
+    "video/ogg": "ogg",
+    "video/quicktime": "mov",
+    "video/x-m4v": "m4v",
+    "video/x-matroska": "mkv",
+    "audio/x-m4a": "m4a",
+    "audio/mp4": "m4a",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/x-pn-wav": "wav",
+    "audio/ogg": "ogg",
+    "audio/x-ogg": "ogg",
+    "text/csv": "csv",
+
+    // Add more mappings if needed
+  };
+
+  const extension = mimeToExtension[mimeType];
+  if (!extension) {
+    throw new Error(`Unsupported MIME type: ${mimeType}`);
+  }
+
+  // Generate a random string for the filename (you can adjust the length as needed)
+  const randomString = Math.random().toString(36).substring(2, 10);
+
+  return `${randomString}.${extension}`;
+}
+
 export const getFileFormData = async (
   file: string | File
 ): Promise<Blob | undefined> => {
@@ -704,8 +755,8 @@ export const obfuscatePhoneNumber = (phoneNumber: string) => {
 
 //#region format profile routers
 const ProfileTabNameMap = new Map([
-  ["owned", "collected"],
-  ["created", "drops"],
+  ["owned", "Saved"],
+  ["created", "Songs"],
 ]);
 
 const getProfileTitle = (name: string) => {
@@ -717,11 +768,12 @@ export const formatProfileRoutes = (
   tabs: ProfileTabsAPI["tabs"] | undefined
 ) => {
   if (!tabs) return [];
+
   return tabs.map((item, index) => ({
-    title: getProfileTitle(item.name),
-    key: item?.name,
-    index,
-    subtitle: item.displayed_count,
+    title: item.name,
+    key: item?.type,
+    index: index,
+    subtitle: 0,
   }));
 };
 //#endregion
@@ -747,7 +799,11 @@ export function formatClaimNumber(number: number) {
 export const OAUTH_REDIRECT_URI = Platform.select({
   web: __DEV__
     ? "http://localhost:3000/magic-oauth-redirect"
-    : `https://${process.env.NEXT_PUBLIC_WEBSITE_DOMAIN}/magic-oauth-redirect`,
+    : `https://${
+        typeof window !== "undefined"
+          ? window.location.host
+          : process.env.NEXT_PUBLIC_WEBSITE_DOMAIN
+      }/magic-oauth-redirect`,
   default: `io.showtime${__DEV__ ? ".development" : ""}://magic-oauth-redirect`,
 });
 
@@ -763,7 +819,8 @@ export const isProfileIncomplete = (profile?: Profile) => {
   return isIncomplete;
 };
 
-export function getFullSizeCover(url: string | undefined) {
+export function getFullSizeCover(profile?: Profile) {
+  const url = profile?.cover_url ? profile?.cover_url : profile?.img_url;
   if (!url) return DEFAULT_PROFILE_PIC;
   if (
     url &&
@@ -861,14 +918,22 @@ export const getWebImageSize = (file: File) => {
 
 export const formatAPIErrorMessage = (error: AxiosError | Error) => {
   let messages = [];
+  console.log(
+    { ...error },
+    axios.isAxiosError(error),
+    (error as any)?.shortMessage
+  );
+
   if (axios.isAxiosError(error)) {
     const res = error.response?.data;
-    if (res.errors) {
+    if (res?.errors) {
       messages = res.errors.map((e: any) => e.message);
-    } else if (res.error) {
+    } else if (res?.error) {
       messages.push(res.error.message);
     }
-  } else if (error.message) {
+  } else if ((error as any)?.shortMessage) {
+    messages.push((error as any).shortMessage);
+  } else if (error?.message) {
     messages.push(error.message);
   }
 
@@ -906,47 +971,55 @@ export const generateFakeData = (
   }));
 };
 
+const twoDigitTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+});
+
 export function formatDateRelativeWithIntl(
-  isoDateString: string,
+  isoDateString: string | number | Date,
   isDisplayCompleteUnit = false
 ): string {
   const date = new Date(isoDateString);
   const now = new Date();
   const diffInSeconds = (now.getTime() - date.getTime()) / 1000;
   const diffInMinutes = diffInSeconds / 60;
-  const diffInHours = diffInMinutes / 60;
-  const diffInDays = Math.floor(diffInHours / 24);
 
   if (diffInMinutes < 1) {
     return "now";
-  } else if (diffInDays < 1) {
-    const timeFormatter = new Intl.DateTimeFormat("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    return timeFormatter.format(date);
-  } else if (diffInDays >= 1 && diffInDays < 7) {
+  }
+
+  const diffInHours = diffInMinutes / 60;
+  const diffInDays = Math.floor(diffInHours / 24);
+
+  if (diffInDays < 1) {
+    return twoDigitTimeFormatter.format(date);
+  }
+
+  if (diffInDays >= 1 && diffInDays < 7) {
     return `${diffInDays}${isDisplayCompleteUnit ? " days ago" : "d"}`;
+  }
+
+  const diffInWeeks = Math.floor(diffInDays / 7);
+  if (diffInWeeks === 1) {
+    return `${diffInWeeks}${isDisplayCompleteUnit ? " week ago" : "w"}`;
+  } else if (diffInWeeks < 4) {
+    return `${diffInWeeks}${isDisplayCompleteUnit ? " weeks ago" : "w"}`;
+  }
+
+  const diffInMonths = Math.floor(diffInDays / 30.44);
+  if (diffInMonths === 1) {
+    return `${diffInMonths}${isDisplayCompleteUnit ? " month ago" : "mo"}`;
+  } else if (diffInMonths < 12) {
+    return `${diffInMonths}${isDisplayCompleteUnit ? " months ago" : "mo"}`;
+  }
+
+  const diffInYears = Math.floor(diffInDays / 365.25);
+  if (diffInYears === 1) {
+    return `${diffInYears}${isDisplayCompleteUnit ? " year ago" : "yr"}`;
   } else {
-    const diffInWeeks = Math.floor(diffInDays / 7);
-    const diffInMonths = Math.floor(diffInDays / 30.44);
-    const diffInYears = Math.floor(diffInDays / 365.25);
-    if (diffInWeeks === 1) {
-      return `${diffInWeeks}${isDisplayCompleteUnit ? " week ago" : "w"}`;
-    } else if (diffInWeeks < 4) {
-      return `${diffInWeeks}${isDisplayCompleteUnit ? " weeks ago" : "w"}`;
-    } else if (diffInMonths < 1) {
-      return `${diffInWeeks}${isDisplayCompleteUnit ? " weeks ago" : "w"}`;
-    } else if (diffInMonths === 1) {
-      return `${diffInMonths}${isDisplayCompleteUnit ? " month ago" : "w"}`;
-    } else if (diffInMonths < 12) {
-      return `${diffInMonths}${isDisplayCompleteUnit ? " months ago" : "w"}`;
-    } else if (diffInYears === 1) {
-      return `${diffInYears}${isDisplayCompleteUnit ? " year ago" : "w"}`;
-    } else {
-      return `${diffInYears}${isDisplayCompleteUnit ? " years ago" : "w"}`;
-    }
+    return `${diffInYears}${isDisplayCompleteUnit ? " years ago" : "yr"}`;
   }
 }
 
@@ -1047,9 +1120,10 @@ export const getCurrencySymbol = (currency: string | null | undefined) => {
   return "$";
 };
 
+const formattersCache: Map<string, Intl.NumberFormat> = new Map();
+
 export const getCurrencyPrice = (
   currency: string | null | undefined,
-  // TODO: Fix price type, ensure safetey of this function (CC @alan, @jorge, @maxime)
   price: number | null | undefined | string
 ): string => {
   // Handle null, undefined, or non-numeric strings
@@ -1058,13 +1132,20 @@ export const getCurrencyPrice = (
   }
 
   const numberValue = typeof price === "string" ? parseFloat(price) : price;
+  const currentCurrency = currency ?? "USD";
+  const cacheKey = `${locale}-${currentCurrency}`;
 
-  return new Intl.NumberFormat(locale ?? "en-US", {
-    style: "currency",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-    currency: currency ?? "USD",
-  }).format(numberValue);
+  if (!formattersCache.has(cacheKey)) {
+    const formatter = new Intl.NumberFormat(locale, {
+      style: "currency",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+      currency: currentCurrency,
+    });
+    formattersCache.set(cacheKey, formatter);
+  }
+
+  return formattersCache.get(cacheKey)!.format(numberValue);
 };
 
 export const getCreatorEarnedMoney = (
@@ -1114,3 +1195,19 @@ export function formatWalletNameToUpperCase(str?: string) {
   );
   return formattedParts.join(" ");
 }
+
+export const getClaimLimitLeftDuration = (timeLimit: string) => {
+  if (new Date() > new Date(timeLimit)) return "Pre-Save airdrop completed";
+  return `${formatDuration(
+    intervalToDuration({
+      start: new Date(),
+      end: new Date(timeLimit),
+    }),
+    {
+      format: ["days", "hours"],
+    }
+  )} left`;
+};
+
+export const isDEV =
+  process.env.NEXT_PUBLIC_STAGE === "development" ? true : false;

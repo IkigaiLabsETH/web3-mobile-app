@@ -29,6 +29,8 @@ import {
   LogOut,
   ChevronRight,
   SearchFilled,
+  Download3,
+  AccessTicket,
 } from "@showtime-xyz/universal.icon";
 import { Image } from "@showtime-xyz/universal.image";
 import { useRouter } from "@showtime-xyz/universal.router";
@@ -42,6 +44,7 @@ import { ErrorBoundary } from "app/components/error-boundary";
 import { Notifications } from "app/components/notifications";
 import { Search } from "app/components/search";
 import { useAuth } from "app/hooks/auth/use-auth";
+import { downloadCollectorList } from "app/hooks/use-download-collector-list";
 import { useFooter } from "app/hooks/use-footer";
 import { useNotifications } from "app/hooks/use-notifications";
 import { useRedirectToCreateDrop } from "app/hooks/use-redirect-to-create-drop";
@@ -88,11 +91,7 @@ const NotificationsInHeader = () => {
   return (
     <Popover.Root modal={true} open={isOpen} onOpenChange={setIsOpen}>
       <Popover.Trigger>
-        <View
-          tw={[
-            "mt-2 h-[50px] flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-50 hover:dark:bg-gray-900",
-          ].join(" ")}
-        >
+        <View tw="mt-2 h-12 flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-50 hover:dark:bg-gray-900">
           <View>
             <Icon color={isDark ? "#fff" : "#000"} width={24} height={24} />
             <View
@@ -156,11 +155,7 @@ const SearchInHeader = () => {
   return (
     <Popover.Root modal={true} open={isOpen} onOpenChange={setIsOpen}>
       <Popover.Trigger>
-        <View
-          tw={[
-            "mt-2 h-[50px] flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-50 hover:dark:bg-gray-900",
-          ].join(" ")}
-        >
+        <View tw="mt-2 h-12 flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-50 hover:dark:bg-gray-900">
           <Icon color={isDark ? "#fff" : "#000"} width={24} height={24} />
           <Text tw={["ml-4 text-lg text-black dark:text-white"]}>Search</Text>
         </View>
@@ -205,8 +200,8 @@ const MenuItem = ({
   return (
     <Link
       tw={[
-        "mt-2 h-[50px] flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-50 hover:dark:bg-gray-900",
-        focused && "bg-coolGray-50 dark:bg-gray-800",
+        "mt-2 h-[50px] flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-100 hover:dark:bg-gray-900",
+        focused && "bg-gray-100 dark:bg-gray-800",
       ].join(" ")}
       href={href}
     >
@@ -247,7 +242,7 @@ export const HeaderMd = withColorScheme(() => {
   const iconColor = isDark ? "#fff" : "#000";
   const { setColorScheme } = useColorScheme();
   const { logout } = useAuth();
-  const { height } = useWindowDimensions();
+  const { height: screenHeight } = useWindowDimensions();
   const HOME_ROUTES = useMemo(
     () =>
       [
@@ -320,7 +315,13 @@ export const HeaderMd = withColorScheme(() => {
   return (
     <View tw="fixed top-0 h-full bg-white pl-2 dark:bg-black">
       <View tw="h-full min-h-screen w-60 overflow-y-auto pl-4">
-        <Link href="/" tw="flex-row items-center pt-8">
+        <Link
+          href="/"
+          tw="flex-row items-center"
+          style={{
+            paddingTop: screenHeight > 860 ? 40 : 24,
+          }}
+        >
           <ShowtimeBrand color={iconColor} width={19 * (84 / 16)} height={19} />
         </Link>
         <View tw="-ml-4 mt-5 w-48 justify-center">
@@ -358,7 +359,7 @@ export const HeaderMd = withColorScheme(() => {
             <DropdownMenuTrigger>
               <View
                 tw={[
-                  "mt-2 h-[50px] cursor-pointer flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-50 hover:dark:bg-gray-900",
+                  "mt-2 h-12 cursor-pointer flex-row items-center rounded-2xl pl-4 transition-all hover:bg-gray-50 hover:dark:bg-gray-900",
                 ]}
               >
                 <Menu width={24} height={24} color={iconColor} />
@@ -370,7 +371,7 @@ export const HeaderMd = withColorScheme(() => {
 
             <DropdownMenuContent
               align="center"
-              tw="w-48"
+              style={{ minWidth: 150 }}
               disableBlurEffect
               side="bottom"
               sideOffset={0}
@@ -422,7 +423,62 @@ export const HeaderMd = withColorScheme(() => {
                   </DropdownMenuItemTitle>
                 </DropdownMenuItem>
               )}
+              {isAuthenticated && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    downloadCollectorList();
+                  }}
+                  key="download-collector-list"
+                >
+                  <MenuItemIcon
+                    Icon={Download3}
+                    ios={{
+                      name: "arrow.down.doc",
+                    }}
+                  />
 
+                  <DropdownMenuItemTitle tw="text-gray-700 dark:text-neutral-300">
+                    Download collector list
+                  </DropdownMenuItemTitle>
+                </DropdownMenuItem>
+              )}
+              {/* TODO: Creator Tokens P1
+              {isAuthenticated && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const as = "/creator-token/import-allowlist";
+                    router.push(
+                      Platform.select({
+                        native: as,
+                        web: {
+                          pathname: router.pathname,
+                          query: {
+                            ...router.query,
+                            creatorTokensImportAllowlistModal: true,
+                          },
+                        } as any,
+                      }),
+                      Platform.select({ native: as, web: router.asPath }),
+                      {
+                        shallow: true,
+                      }
+                    );
+                  }}
+                  key="import-allowlist"
+                >
+                  <MenuItemIcon
+                    Icon={AccessTicket}
+                    ios={{
+                      name: "ticket",
+                    }}
+                  />
+
+                  <DropdownMenuItemTitle tw="text-gray-700 dark:text-neutral-300">
+                    Import allowlist to channel
+                  </DropdownMenuItemTitle>
+                </DropdownMenuItem>
+              )}
+              */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger key="nested-group-trigger">
                   <MenuItemIcon
@@ -516,7 +572,7 @@ export const HeaderMd = withColorScheme(() => {
               </Text>
             </>
           </Button>
-          <Divider tw="my-6" />
+          <Divider tw="my-5" />
           <View tw="rounded-2xl border  border-gray-200 pb-2 pt-4 dark:border-gray-600">
             <View tw="flex-row items-center justify-center">
               <PhonePortraitOutline color={iconColor} width={18} height={18} />
@@ -556,8 +612,8 @@ export const HeaderMd = withColorScheme(() => {
         </View>
         <View
           tw={[
-            "absolute bottom-0 mt-6 inline-block",
-            !isAuthenticated || height > 880 ? "absolute" : "relative",
+            "bottom-0 mt-4 inline-block",
+            screenHeight > 840 ? "absolute" : "relative",
           ]}
           style={{}}
         >

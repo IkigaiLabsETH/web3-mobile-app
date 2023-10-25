@@ -13,6 +13,7 @@ import "react-datepicker/dist/react-datepicker.css";
 
 import { View } from "@showtime-xyz/universal.view";
 
+import { PlaybackService } from "app/components/audio-player/service";
 import Footer from "app/components/footer";
 import Header from "app/components/header";
 import { withColorScheme } from "app/components/memo-with-theme";
@@ -36,6 +37,13 @@ import { CreatorChannelsMembersScreen } from "app/screens/creator-channels-membe
 import { CreatorChannelsMessageReactionsScreen } from "app/screens/creator-channels-message-reactions";
 import { CreatorChannelsSettingsScreen } from "app/screens/creator-channels-settings";
 import { CreatorChannelsShareScreen } from "app/screens/creator-channles-share";
+import { CreatorTokenBuyScreen } from "app/screens/creator-token/buy-creator-token";
+import { InviteCreatorTokenScreen } from "app/screens/creator-token/invite-creator-token";
+import { CreatorTokenInviteSignInScreen } from "app/screens/creator-token/invite-sign-in";
+import { CreatorTokensExplanationScreen } from "app/screens/creator-tokens-explanation";
+import { CreatorTokensSelfServeExplainerScreen } from "app/screens/creator-tokens-self-serve-explainer";
+import { CreatorTokensShareModalScreen } from "app/screens/creator-tokens-share";
+import { EnterInviteCodeModalScreen } from "app/screens/creatro-tokens-enter-invite-modal";
 import { DetailsScreen } from "app/screens/details";
 import { DropScreen } from "app/screens/drop";
 import { DropEditDetailsScreen } from "app/screens/drop-edit-details";
@@ -50,6 +58,8 @@ import { LikersScreen } from "app/screens/likers";
 import { LoginScreen } from "app/screens/login";
 import { OnboardingScreen } from "app/screens/onboarding";
 import { PayoutsSetupScreen } from "app/screens/payouts/setup";
+import { CreatorTokensImportAllowlistScreen } from "app/screens/profile/import-allowlist";
+import { CreatorTokensImportAllowlistSuccessScreen } from "app/screens/profile/imported-allowlist-succeeded";
 import { QRCodeShareScreen } from "app/screens/qr-code-share";
 import { RaffleScreen } from "app/screens/raffle";
 import { ReportScreen } from "app/screens/report";
@@ -58,6 +68,7 @@ import { VerifyPhoneNumberScreen } from "app/screens/settings-verify-phone-numbe
 import { prevRouteRef } from "app/utilities";
 
 import { Toaster } from "design-system/toast";
+import TrackPlayer from "design-system/track-player";
 
 import "../styles/styles.css";
 
@@ -66,7 +77,7 @@ Sentry.init({
   environment: process.env.STAGE,
 });
 
-console.log("hello from preprod");
+TrackPlayer.registerPlaybackService(() => PlaybackService);
 
 function App({ Component, pageProps, router }: AppProps) {
   const meta = pageProps.meta;
@@ -133,6 +144,22 @@ function App({ Component, pageProps, router }: AppProps) {
           }
         />
       )}
+      {meta.nftCollection && (
+        <meta name="eth:nft:collection" content={meta.nftCollection} />
+      )}
+      {meta.nftContractAddress && (
+        <meta
+          name="eth:nft:contract_address"
+          content={meta.nftContractAddress}
+        />
+      )}
+      {meta.nftCreatorAddress && (
+        <meta name="eth:nft:creator_address" content={meta.nftCreatorAddress} />
+      )}
+      {meta.nftSchema && (
+        <meta name="eth:nft:schema" content={meta.nftSchema} />
+      )}
+      {meta.nftChain && <meta name="eth:nft:chain" content={meta.nftChain} />}
     </>
   ) : (
     <>
@@ -212,6 +239,8 @@ function App({ Component, pageProps, router }: AppProps) {
         <FollowingScreen />
         <DropScreen />
         <DropExplanationScreen />
+        <CreatorTokensExplanationScreen />
+        <EnterInviteCodeModalScreen />
         <ClaimScreen />
         <RaffleScreen />
         <CollectorsScreen />
@@ -238,6 +267,13 @@ function App({ Component, pageProps, router }: AppProps) {
         <AddEmailScreen />
         <VerifyPhoneNumberScreen />
         <UnlockedChannelScreen />
+        <CreatorTokenBuyScreen />
+        <CreatorTokensShareModalScreen />
+        <CreatorTokenInviteSignInScreen />
+        <InviteCreatorTokenScreen />
+        <CreatorTokensSelfServeExplainerScreen />
+        <CreatorTokensImportAllowlistScreen />
+        <CreatorTokensImportAllowlistSuccessScreen />
         {/* Login should be the last so it renders on top of others if needed */}
         <LoginScreen />
         <Toaster />

@@ -22,14 +22,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSWRConfig } from "swr";
 
+import { Button } from "@showtime-xyz/universal.button";
 import { useIsDarkMode } from "@showtime-xyz/universal.hooks";
 import {
-  EyeOffV2,
-  GiftV2,
-  LockRounded,
-  Music,
-  Shopping,
   CreatorChannelFilled,
+  ShowtimeRounded,
 } from "@showtime-xyz/universal.icon";
 import {
   ListRenderItem,
@@ -43,6 +40,7 @@ import { Text } from "@showtime-xyz/universal.text";
 import { View } from "@showtime-xyz/universal.view";
 
 import { useIntroducingCreatorChannels } from "app/components/onboarding/introducing-creator-channels";
+import { useUserProfile } from "app/hooks/api-hooks";
 import { useCreatorCollectionDetail } from "app/hooks/use-creator-collection-detail";
 import { useNFTDetailBySlug } from "app/hooks/use-nft-details-by-slug";
 import { usePlatformBottomHeight } from "app/hooks/use-platform-bottom-height";
@@ -55,19 +53,22 @@ import {
 } from "app/lib/keyboard-controller";
 import { createParam } from "app/navigation/use-param";
 
+import TrackPlayer from "design-system/track-player";
+
+import { setupPlayer } from "../audio-player/service";
+import { pauseAllActiveTracks } from "../audio-player/store";
 import {
   AnimatedInfiniteScrollListWithRef,
   CustomCellRenderer,
 } from "./components/animated-cell-container";
 import { MessageInput, ScrollToBottomButton } from "./components/message-input";
-import { MessageItem, MessageSkeleton } from "./components/message-item";
+import { MessageItem } from "./components/message-item";
+import { MessageSkeleton } from "./components/message-skeleton";
 import { MessagesHeader } from "./components/messages-header";
 import { useChannelById } from "./hooks/use-channel-detail";
-import {
-  ChannelMessageItem,
-  useChannelMessages,
-} from "./hooks/use-channel-messages";
+import { useChannelMessages } from "./hooks/use-channel-messages";
 import { UNREAD_MESSAGES_KEY } from "./hooks/use-channels-unread-messages";
+import { ChannelMessageItem } from "./types";
 
 const AnimatedView = Animated.createAnimatedComponent(View);
 
@@ -76,39 +77,53 @@ type Query = {
   fresh?: string;
 };
 const { useParam } = createParam<Query>();
-const benefits = [
-  {
-    icon: Music,
-    text: "Music releases and shows",
-  },
-  {
-    icon: GiftV2,
-    text: "NFT drops & allowlists",
-  },
-  {
-    icon: Shopping,
-    text: "Merchandise links & discounts",
-  },
-  {
-    icon: LockRounded,
-    text: "Unreleased content or news",
-  },
-];
 
 const keyExtractor = (item: ChannelMessageItem) =>
   item.channel_message.id.toString();
 
 const getItemType = (item: ChannelMessageItem) => {
-  if (item.channel_message.is_payment_gated && !item.channel_message.body) {
+  /*
+  if (
+    item.channel_message.is_payment_gated &&
+    !item.channel_message.body &&
+    !item.channel_message?.attachments
+  ) {
     return "payment-gate";
   }
+  */
 
-  if (item.channel_message.is_payment_gated && item.channel_message.body) {
-    return "message-unlocked";
-  }
+  if (
+    item.channel_message?.attachments &&
+    item.channel_message?.attachments[0]?.mime
+  ) {
+    if (item.channel_message?.attachments[0].mime.includes("video")) {
+      return "video";
+    }
+    if (item.channel_message?.attachments[0].mime.includes("audio")) {
+      return "audio";
+    }
+    if (item.channel_message?.attachments[0].mime.includes("image")) {
+      if (
+        item.channel_message?.attachments[0].height! >
+        item.channel_message?.attachments[0].width!
+      ) {
+        return "image-portrait";
+      }
 
-  if (item.reaction_group.length > 0) {
-    return "reaction-message";
+      if (
+        item.channel_message?.attachments[0].height! <
+        item.channel_message?.attachments[0].width!
+      ) {
+        return "image-landscape";
+      }
+
+      if (
+        item.channel_message?.attachments[0].height ===
+        item.channel_message?.attachments[0].width
+      ) {
+        return "image-square";
+      }
+    }
   }
 
   return "message";
@@ -145,6 +160,23 @@ export const Messages = memo(() => {
       : { height: { value: 0 }, state: {} };
 
   const editMessageItemDimension = useSharedValue({ pageY: 0, height: 0 });
+
+  // when component unmounts, reset all running player instances
+  useLayoutEffect(() => {
+    queueMicrotask(async () => {
+      await setupPlayer();
+      await TrackPlayer.reset();
+      pauseAllActiveTracks();
+    });
+
+    // yes, this is weird but we need it to run on unmount as well
+    return () => {
+      queueMicrotask(() => {
+        TrackPlayer.reset();
+        pauseAllActiveTracks();
+      });
+    };
+  }, [channelId]);
 
   useEffect(() => {
     editMessageIdSharedValue.value = editMessage?.id;
@@ -216,7 +248,7 @@ export const Messages = memo(() => {
     };
   }, []);
 
-  const shareLink = async () => {
+  const shareLink = useCallback(async () => {
     const as = `/channels/${channelId}/share`;
     router.push(
       Platform.select({
@@ -235,7 +267,8 @@ export const Messages = memo(() => {
       }),
       { shallow: true }
     );
-  };
+  }, [channelId, router]);
+
   const { data, isLoading, fetchMore, isLoadingMore, error } =
     useChannelMessages(channelId);
 
@@ -269,9 +302,10 @@ export const Messages = memo(() => {
     if (error && axios.isAxiosError(error)) {
       if (error?.response?.status === 404) {
         router.replace("/channels");
+        return;
       }
     }
-  }, [error, router]);
+  }, [channelId, error, router]);
 
   // this check is an extra check in case of 401 error
   // the user most likely follwed a link to a channel that they are not a member of
@@ -302,10 +336,18 @@ export const Messages = memo(() => {
           editMessageIdSharedValue={editMessageIdSharedValue}
           editMessageItemDimension={editMessageItemDimension}
           edition={edition}
+          isUserAdmin={isUserAdmin}
+          permissions={channelDetail.data?.permissions}
         />
       );
     },
-    [editMessageIdSharedValue, editMessageItemDimension, edition]
+    [
+      channelDetail.data?.permissions,
+      editMessageIdSharedValue,
+      editMessageItemDimension,
+      edition,
+      isUserAdmin,
+    ]
   );
 
   // TODO: add back to keyboard controller?
@@ -330,16 +372,7 @@ export const Messages = memo(() => {
     [keyboard]
   );
 
-  const introFooterCompensation = useAnimatedStyle(
-    () => ({
-      bottom:
-        keyboard.height.value === 0 ? 16 : -(keyboard.height.value / 2) + 16,
-    }),
-    [keyboard]
-  );
-
   const listEmptyComponent = useCallback(() => {
-    const iconColor = isDark ? colors.white : colors.gray[900];
     return (
       <AnimatedView
         tw="ios:scale-y-[-1] android:scale-y-[1] web:justify-start android:rotate-180 w-full items-center justify-center"
@@ -352,59 +385,62 @@ export const Messages = memo(() => {
       >
         <View tw="mt-6 w-full items-center justify-center">
           {isUserAdmin && (
-            <View tw="w-full max-w-[357px] rounded-2xl bg-gray-100 pb-3 pt-3 dark:bg-gray-900">
-              <View tw="px-6 pt-1">
-                <Text tw="text-sm font-bold text-black dark:text-white">
-                  Welcome! Now send your first update.
-                </Text>
-                <View tw="h-2" />
-                <Text tw="text-sm text-gray-900 dark:text-white">
-                  All your collectors will join automatically after your first
-                  update. We recommend at least 2 updates a week on:
-                </Text>
-                <View tw="h-1" />
-                {benefits.map((item, i) => (
-                  <View tw="mt-1 flex-row items-center" key={i.toString()}>
-                    {item.icon({ width: 20, height: 20, color: iconColor })}
-                    <Text tw="ml-3 text-sm font-semibold text-black dark:text-white">
-                      {item.text}
+            <>
+              <View tw="w-full max-w-[357px] rounded-2xl border border-gray-300 bg-gray-100 pb-3 pt-3 dark:border-gray-800 dark:bg-gray-900">
+                <View tw="px-6 pt-1">
+                  <View tw="flex-row items-center">
+                    <View tw="mr-4 h-10 w-10 items-center justify-center rounded-full bg-white">
+                      <CreatorChannelFilled
+                        width={22}
+                        height={22}
+                        color={"black"}
+                      />{" "}
+                    </View>
+                    <Text tw="text-sm font-bold text-black dark:text-white">
+                      Welcome! Let's get this party started.{" "}
+                      <Text tw="font-normal">
+                        A groupchat for your community where you can share
+                        audio, pictures & more.
+                      </Text>
                     </Text>
                   </View>
-                ))}
+
+                  <Button tw="mt-5" onPress={shareLink}>
+                    Share
+                  </Button>
+                </View>
               </View>
-            </View>
+              {/* TODO: Creator Tokens P1
+              <View tw="mt-5 w-full max-w-[357px] rounded-2xl border border-gray-300 bg-gray-100 pb-3 pt-3 dark:border-gray-800 dark:bg-gray-900">
+                <View tw="px-6 pt-1">
+                  <View tw="flex-row items-center">
+                    <View tw="mr-4 h-10 w-10 items-center justify-center rounded-full bg-white">
+                      <ShowtimeRounded width={26} height={26} color={"black"} />
+                    </View>
+                    <Text tw="text-sm font-bold text-black dark:text-white">
+                      Invite a creator, earn their token for free.{" "}
+                      <Text tw="font-normal">
+                        3 invites left to send your friends.
+                      </Text>
+                    </Text>
+                  </View>
+                  <Button
+                    tw="mt-5"
+                    onPress={() => {
+                      router.push("/profile/invite-creator-token");
+                    }}
+                  >
+                    Invite
+                  </Button>
+                </View>
+              </View>
+              */}
+            </>
           )}
         </View>
-        {isUserAdmin && (
-          <AnimatedView
-            tw="web:mb-4 absolute bottom-4 mt-auto w-full items-center justify-center"
-            style={introFooterCompensation}
-          >
-            <View tw="my-3 max-w-[300px] flex-row items-start justify-start">
-              <View tw="absolute -top-1.5">
-                <EyeOffV2
-                  width={18}
-                  height={18}
-                  color={isDark ? colors.gray[200] : colors.gray[600]}
-                />
-              </View>
-              <Text tw="ml-6 text-center text-xs text-gray-600 dark:text-gray-400">
-                This channel is hidden until your first message.
-              </Text>
-            </View>
-            <Text tw="text-center text-xs text-indigo-700 dark:text-violet-400">{`${membersCount.toLocaleString()} members will be notified`}</Text>
-          </AnimatedView>
-        )}
       </AnimatedView>
     );
-  }, [
-    introCompensation,
-    introFooterCompensation,
-    isDark,
-    isUserAdmin,
-    membersCount,
-    windowDimension.height,
-  ]);
+  }, [introCompensation, isUserAdmin, shareLink, windowDimension.height]);
 
   const extraData = useMemo(
     () => ({ reactions: channelDetail.data?.channel_reactions, channelId }),
@@ -418,10 +454,30 @@ export const Messages = memo(() => {
 
   const fakeView = useAnimatedStyle(
     () => ({
-      height: Math.abs(keyboard.height.value),
+      height: Math.max(Math.abs(keyboard.height.value), 0),
     }),
     [keyboard]
   );
+
+  const renderListHeader = useCallback(
+    () => <AnimatedView style={fakeView} />,
+    [fakeView]
+  );
+
+  const renderListFooter = useCallback(() => {
+    if (isLoadingMore) {
+      return (
+        <View tw="w-full items-center py-4">
+          <Spinner size="small" />
+        </View>
+      );
+    }
+    return null;
+  }, [isLoadingMore]);
+
+  const channelOwnerProfile = useUserProfile({
+    address: channelDetail.data?.owner.username,
+  });
 
   if (!channelId) {
     return (
@@ -492,7 +548,7 @@ export const Messages = memo(() => {
           tw={[
             "flex-1 overflow-hidden",
             //isUserAdmin ? "android:pb-12 ios:pb-8 web:pb-12" : "",
-            showCollectToUnlock ? "pb-2" : "android:pb-12 ios:pb-10 web:pb-12", // since we always show the input, leave the padding
+            showCollectToUnlock ? "pb-2" : "", // since we always show the input, leave the padding
           ]}
         >
           {isLoading ||
@@ -509,30 +565,23 @@ export const Messages = memo(() => {
                 onEndReached={onLoadMore}
                 inverted
                 getItemType={getItemType}
+                drawDistance={200}
                 scrollEnabled={data.length > 0}
                 overscan={4}
                 onScroll={scrollhandler}
                 useWindowScroll={false}
-                estimatedItemSize={400}
+                estimatedItemSize={300}
                 // android > 12 flips the scrollbar to the left, FlashList bug
                 showsVerticalScrollIndicator={Platform.OS !== "android"}
                 keyboardDismissMode={
                   Platform.OS === "ios" ? "interactive" : "on-drag"
                 }
                 renderItem={renderItem}
-                contentContainerStyle={{ paddingTop: insets.bottom }}
                 extraData={extraData}
+                ListHeaderComponent={renderListHeader}
                 CellRendererComponent={CustomCellRenderer}
                 ListEmptyComponent={listEmptyComponent}
-                ListFooterComponent={
-                  isLoadingMore
-                    ? () => (
-                        <View tw="w-full items-center py-4">
-                          <Spinner size="small" />
-                        </View>
-                      )
-                    : () => null
-                }
+                ListFooterComponent={renderListFooter}
               />
             </>
           )}
@@ -547,12 +596,13 @@ export const Messages = memo(() => {
           keyboard={keyboard}
           edition={edition}
           hasUnlockedMessages={hasUnlockedMessage}
+          permissions={channelDetail.data?.permissions}
+          channelOwnerProfile={channelOwnerProfile.data?.data?.profile}
         />
-        <AnimatedView style={fakeView} />
 
         {showScrollToBottom ? (
           <Animated.View entering={SlideInDown} exiting={SlideOutDown}>
-            <View tw="absolute bottom-[80px] right-4">
+            <View tw="absolute bottom-[130px] right-4">
               <ScrollToBottomButton
                 onPress={() => {
                   listRef.current?.scrollToOffset({

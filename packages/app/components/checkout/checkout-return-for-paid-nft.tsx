@@ -7,12 +7,10 @@ import Spinner from "@showtime-xyz/universal.spinner";
 import { Text } from "@showtime-xyz/universal.text";
 import { View } from "@showtime-xyz/universal.view";
 
-import { useJoinChannel } from "app/components/creator-channels/hooks/use-join-channel";
 import { ClaimContext } from "app/context/claim-context";
 import { useMyInfo } from "app/hooks/api-hooks";
 import { useConfirmPayment } from "app/hooks/api/use-confirm-payment";
 import { usePaymentsManage } from "app/hooks/api/use-payments-manage";
-import { useClaimNFT } from "app/hooks/use-claim-nft";
 import {
   CreatorEditionResponse,
   useCreatorCollectionDetail,
@@ -27,7 +25,6 @@ const { useParam } = createParam<{
   contractAddress: string;
   isPaid?: string;
   paymentIntentId?: string;
-  onRampMerchantId?: string;
 }>();
 
 export const CheckoutReturnForPaidNFT = () => {
@@ -55,100 +52,86 @@ const CheckoutReturn = memo(function CheckoutReturn({
   edition: CreatorEditionResponse;
   nft: NFT;
 }) {
-  const joinChannel = useJoinChannel();
   const [paymentIntentIdParam] = useParam("paymentIntentId");
-  const [onRampMerchantId] = useParam("onRampMerchantId");
 
   const { state } = useContext(ClaimContext);
 
   const router = useRouter();
-  const { claimNFT } = useClaimNFT(edition?.creator_airdrop_edition);
-  const { paymentStatus, message, confirmPaymentStatus, confirmOnRampStatus } =
-    useConfirmPayment();
+  const { paymentStatus, message, confirmPaymentStatus } = useConfirmPayment();
   const myInfo = useMyInfo();
 
-  const closeModal = useCallback(
-    async (channelId?: number) => {
-      await myInfo.mutateLastCollectedStarDropCache({
-        contractAddress: edition.creator_airdrop_edition.contract_address,
-        username: nft.creator_username ?? nft.creator_address,
-        slug: nft.slug ?? nft.creator_address,
-      });
-      await joinChannel.trigger({ channelId: channelId });
-      const { asPath, pathname } = router;
+  const removeQueryParam = useCallback(() => {
+    router.replace({ pathname: router.pathname }, undefined, {
+      shallow: true,
+    });
+  }, [router]);
+  const closeModal = useCallback(async () => {
+    await myInfo.mutateLastCollectedStarDropCache({
+      contractAddress: edition.creator_airdrop_edition.contract_address,
+      username: nft.creator_username ?? nft.creator_address,
+      slug: nft.slug ?? nft.creator_address,
+    });
+    const { asPath, pathname } = router;
 
-      const pathWithoutQuery = asPath.split("?")[0];
+    const pathWithoutQuery = asPath.split("?")[0];
 
-      router.replace(
-        {
-          // Notes: Because we have rewritten the profile route pathname, we need to handle it specially.
-          pathname: pathname.includes("/profile") ? pathWithoutQuery : pathname,
-          query: {
-            contractAddress: edition?.creator_airdrop_edition.contract_address,
-            unlockedChannelModal: true,
-          },
+    router.replace(
+      {
+        // Notes: Because we have rewritten the profile route pathname, we need to handle it specially.
+        pathname: pathname.includes("/profile") ? pathWithoutQuery : pathname,
+        query: {
+          contractAddress: edition?.creator_airdrop_edition.contract_address,
+          unlockedChannelModal: true,
         },
-        pathWithoutQuery,
-        {
-          shallow: true,
-        }
-      );
-    },
-    [
-      edition.creator_airdrop_edition.contract_address,
-      joinChannel,
-      myInfo,
-      nft.creator_address,
-      nft.creator_username,
-      nft.slug,
-      router,
-    ]
-  );
+      },
+      pathWithoutQuery,
+      {
+        shallow: true,
+      }
+    );
+  }, [
+    edition.creator_airdrop_edition.contract_address,
+    myInfo,
+    nft.creator_address,
+    nft.creator_username,
+    nft.slug,
+    router,
+  ]);
   const { setPaymentByDefault } = usePaymentsManage();
 
   const handlePaymentSuccess = useCallback(async () => {
-    // Payment is of type onramp
-    // Onramp does claim + payment confirmation in the webhook so we don't need to trigger claimNFT
-    // Currently, Stripe does not do claim so we need to trigger claimNFT
-    if (onRampMerchantId) {
-      await confirmOnRampStatus(onRampMerchantId);
-    } else {
-      const setAsDefaultPaymentMethod = new URLSearchParams(
-        window.location.search
-      ).get("setAsDefaultPaymentMethod");
+    const setAsDefaultPaymentMethod = new URLSearchParams(
+      window.location.search
+    ).get("setAsDefaultPaymentMethod");
 
-      const stripe = await stripePromise();
+    const stripe = await stripePromise();
 
-      const clientSecret = new URLSearchParams(window.location.search).get(
-        "payment_intent_client_secret"
-      );
+    const clientSecret = new URLSearchParams(window.location.search).get(
+      "payment_intent_client_secret"
+    );
 
-      let paymentIntentId = paymentIntentIdParam;
-      if (stripe && clientSecret) {
-        const res = await stripe.retrievePaymentIntent(clientSecret);
-        if (typeof res.paymentIntent?.payment_method === "string") {
-          if (setAsDefaultPaymentMethod) {
-            setPaymentByDefault(res.paymentIntent.payment_method);
-          }
-        }
-        if (!paymentIntentId) {
-          paymentIntentId = res.paymentIntent?.id;
+    let paymentIntentId = paymentIntentIdParam;
+    if (stripe && clientSecret) {
+      const res = await stripe.retrievePaymentIntent(clientSecret);
+      if (typeof res.paymentIntent?.payment_method === "string") {
+        if (setAsDefaultPaymentMethod) {
+          setPaymentByDefault(res.paymentIntent.payment_method);
         }
       }
-
-      if (paymentIntentId) {
-        await confirmPaymentStatus(paymentIntentId);
+      if (!paymentIntentId) {
+        paymentIntentId = res.paymentIntent?.id;
       }
-      await claimNFT({ closeModal });
+    }
+
+    if (paymentIntentId) {
+      await confirmPaymentStatus(paymentIntentId);
+      closeModal();
     }
   }, [
-    onRampMerchantId,
-    claimNFT,
-    closeModal,
-    confirmOnRampStatus,
-    paymentIntentIdParam,
     setPaymentByDefault,
     confirmPaymentStatus,
+    paymentIntentIdParam,
+    closeModal,
   ]);
 
   useEffectOnce(() => {
@@ -163,7 +146,7 @@ const CheckoutReturn = memo(function CheckoutReturn({
         >
           {state.error}
         </Text>
-        <Button tw="mt-4" onPress={() => router.pop()}>
+        <Button tw="mt-4" onPress={removeQueryParam}>
           Got it.
         </Button>
       </View>

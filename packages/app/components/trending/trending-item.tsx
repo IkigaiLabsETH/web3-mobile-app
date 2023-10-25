@@ -30,7 +30,7 @@ type TrendingItemProps = ViewProps & {
   numColumns: number;
   tw?: string;
   filter?: "all" | "music";
-  type?: "onchainsummer" | "default";
+  type?: "default";
 };
 export const TrendingItem = memo<TrendingItemProps>(function TrendingItem({
   index,
@@ -70,20 +70,15 @@ export const TrendingItem = memo<TrendingItemProps>(function TrendingItem({
       },
       style,
     ];
-  }, [width, style]);
+  }, [style, width]);
 
   return (
     <View tw={["h-full w-full", tw]} style={viewStyle} {...rest}>
       <RouteComponent
         as={getNFTSlug(nft)}
-        // TODO: remove after onchainsummer
-        href={
-          type === "onchainsummer"
-            ? getNFTSlug(nft)
-            : `${getNFTSlug(nft)}?initialScrollItemId=${
-                nft.nft_id
-              }&filter=${filter}&type=trendingNFTs`
-        }
+        href={`${getNFTSlug(nft)}?initialScrollItemId=${
+          nft.nft_id
+        }&filter=${filter}&type=trendingNFTs`}
       >
         <View
           tw="overflow-hidden rounded-2xl"
@@ -103,7 +98,7 @@ export const TrendingItem = memo<TrendingItemProps>(function TrendingItem({
             <NSFWGate show={nft.nsfw} nftId={nft.nft_id} variant="thumbnail" />
             <View tw="absolute left-0 top-0 h-7 w-7 items-center justify-center rounded-br-2xl rounded-tl-2xl bg-black/50">
               <Text tw="font-bold text-white" style={{ fontSize: 15 }}>
-                {type === "onchainsummer" ? "🟡" : index + 1}
+                {index + 1}
               </Text>
             </View>
           </View>
@@ -126,7 +121,7 @@ export const TrendingItem = memo<TrendingItemProps>(function TrendingItem({
           {getCreatorUsernameFromNFT(nft)}
         </Text>
         <View tw="w-1" />
-        <VerificationBadge size={12} />
+        {nft?.creator_verified ? <VerificationBadge size={12} /> : null}
       </View>
       <RouteComponent
         as={getNFTSlug(nft)}

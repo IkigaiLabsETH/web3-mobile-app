@@ -49,16 +49,6 @@ export const Home = () => {
         );
       }
 
-      // TODO: remove this after onchainsummer
-      if (index === 1) {
-        return (
-          <>
-            <HomeItem nft={item} mediaSize={mediaSize} index={index} />
-            <TrendingCarousel />
-          </>
-        );
-      }
-
       // New logic for carousel that shows every 25% of the feed
       if (index % Math.floor(feedItemLength * 0.25) === 0 && index !== 0) {
         return (
@@ -97,10 +87,6 @@ export const Home = () => {
     (_: NFT, index: number) => {
       if (index === 0) {
         return "popularCreators";
-      }
-
-      if (index === 1) {
-        return "onchainsummer";
       }
 
       if (index % Math.floor(feedItemLength * 0.25) === 0 && index !== 0) {
