@@ -261,21 +261,24 @@ export const BuyCreatorToken = () => {
             <View tw="flex-row justify-between">
               <Text tw="text-gray-700 dark:text-gray-200">You own:</Text>
               {tokenBalance.isLoading ? (
-                <Skeleton width={40} height={14} />
+                <Skeleton width={40} height={16} />
               ) : (
-                <Text tw="text-gray-700 dark:text-gray-200">
+                <Text tw="font-semibold text-gray-700 dark:text-gray-200">
                   {tokenBalance.data?.toString()}
                 </Text>
               )}
             </View>
             <View tw="flex-row items-center">
-              <Text tw="flex-2 text-gray-700 dark:text-gray-200">
+              <Text tw="flex-2 w-32 text-gray-700 dark:text-gray-200">
                 Quantity to {selectedAction === "buy" ? "buy" : "sell"}:
               </Text>
               <View tw="w-4" />
-              <View tw="flex-1 flex-row rounded-sm border-[1px] border-gray-200 dark:border-gray-700">
+              <View tw="flex-1 flex-row overflow-hidden rounded-xl border-[1px] border-gray-200 dark:border-gray-700">
                 <View tw="flex-1 border-gray-200 p-4 text-center dark:border-gray-700 dark:text-gray-200">
-                  <Text tw="text-gray-900 dark:text-gray-200">
+                  <Text
+                    tw="text-xl font-semibold text-gray-900 dark:text-gray-200"
+                    style={{ lineHeight: 24 }}
+                  >
                     {tokenAmount}
                   </Text>
                 </View>
@@ -283,9 +286,9 @@ export const BuyCreatorToken = () => {
                   onPress={() => {
                     setTokenAmount((t) => (t > 1 ? t - 1 : 1));
                   }}
-                  tw="flex-1 items-center border-[1px] border-transparent border-l-gray-200 border-r-gray-200 bg-blue-50 p-4 dark:border-l-gray-600 dark:border-r-gray-600 dark:bg-gray-800"
+                  tw="-mt-0.5 flex-1 items-center border-[1px] border-transparent border-l-gray-200 border-r-gray-200 bg-blue-50 p-4 dark:border-l-gray-600 dark:border-r-gray-600 dark:bg-gray-800"
                 >
-                  <Text tw="text-2xl font-normal text-gray-800 dark:text-gray-200">
+                  <Text tw="dark:text-gray-20 select-none text-2xl font-normal text-gray-800">
                     —
                   </Text>
                 </Pressable>
@@ -299,9 +302,9 @@ export const BuyCreatorToken = () => {
                         : t + 1
                     );
                   }}
-                  tw="flex-1 items-center bg-blue-50 p-4 dark:bg-gray-800"
+                  tw="-mt-1 flex-1 items-center justify-center bg-blue-50 p-4 dark:bg-gray-800"
                 >
-                  <Text tw="text-3xl font-normal text-gray-800 dark:text-gray-200">
+                  <Text tw="select-none text-3xl font-normal text-gray-800 dark:text-gray-200">
                     +
                   </Text>
                 </Pressable>
@@ -320,9 +323,9 @@ export const BuyCreatorToken = () => {
               {selectedAction === "buy" ? (
                 <>
                   {priceToBuyNext.isLoading ? (
-                    <Skeleton width={40} height={14} />
+                    <Skeleton width={60} height={16} />
                   ) : (
-                    <Text tw="text-gray-700 dark:text-gray-200">
+                    <Text tw="font-semibold text-gray-700 dark:text-gray-200">
                       ${priceToBuyNext.data?.displayPrice}
                     </Text>
                   )}
@@ -330,9 +333,9 @@ export const BuyCreatorToken = () => {
               ) : (
                 <>
                   {priceToSellNext.isLoading ? (
-                    <Skeleton width={40} height={14} />
+                    <Skeleton width={60} height={16} />
                   ) : (
-                    <Text tw="text-gray-700 dark:text-gray-200">
+                    <Text tw="font-semibold text-gray-700 dark:text-gray-200">
                       ${priceToSellNext.data?.displayPrice}
                     </Text>
                   )}

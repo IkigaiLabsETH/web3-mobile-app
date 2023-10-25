@@ -49,6 +49,8 @@ export const useCreatorTokenSell = () => {
         await wallet.connect();
       }
 
+      let walletAddress = wallet.getWalletClient?.()?.account?.address;
+
       const tokenIdsRes = await axios({
         url:
           "/v1/creator-token/sell/token-ids?creator_token_id=" +
@@ -78,7 +80,7 @@ export const useCreatorTokenSell = () => {
       if (tokenIds.length === 1) {
         const { request } = await publicClient.simulateContract({
           address: arg.contractAddress,
-          account: wallet.address,
+          account: walletAddress,
           abi: creatorTokenAbi,
           functionName: "sell",
           args: [tokenIds[0]],
@@ -88,7 +90,7 @@ export const useCreatorTokenSell = () => {
       } else {
         const { request } = await publicClient.simulateContract({
           address: arg.contractAddress,
-          account: wallet.address,
+          account: walletAddress,
           abi: creatorTokenAbi,
           functionName: "bulkSell",
           args: [tokenIds],
